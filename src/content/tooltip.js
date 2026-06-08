@@ -3,6 +3,17 @@
 
     const app = window.__frenchPickupExtension;
 
+    function getKnownTooltipSelector() {
+        const ids = [app.TOOLTIP_ID].concat(app.LEGACY_TOOLTIP_IDS || []);
+        const idSelectors = ids
+            .filter(Boolean)
+            .map((id) => `#${window.CSS && window.CSS.escape ? window.CSS.escape(id) : id}`);
+
+        return idSelectors
+            .concat('[data-french-pickup="tooltip"]', '[data-french-pickup-current="true"]')
+            .join(', ');
+    }
+
     function createButton(label, color, hoverColor) {
         const button = document.createElement('button');
         button.textContent = label;
@@ -36,11 +47,17 @@
         }
 
         createRoot() {
-            document.querySelectorAll(`#${app.TOOLTIP_ID}`).forEach((node) => node.remove());
+            document
+                .querySelectorAll(getKnownTooltipSelector())
+                .forEach((node) => node.remove());
 
             const root = document.createElement('div');
             root.id = app.TOOLTIP_ID;
+            root.dataset.frenchPickup = 'tooltip';
             root.dataset.frenchPickupCurrent = 'true';
+            root.dataset.frenchPickupVersion = app.VERSION || '';
+            root.dataset.frenchPickupTooltipId = app.TOOLTIP_ID;
+            root.title = `French Pickup content script v${app.VERSION || 'unknown'}`;
             root.style.cssText = `
                 position: fixed;
                 z-index: 2147483647;
@@ -114,17 +131,31 @@
             const translation = document.createElement('div');
             result.appendChild(translation);
 
+            const versionBadge = document.createElement('div');
+            versionBadge.textContent = `v${app.VERSION || 'unknown'}`;
+            versionBadge.dataset.frenchPickupVersionBadge = 'true';
+            versionBadge.style.cssText = `
+                margin-top: 6px;
+                text-align: right;
+                color: #94a3b8;
+                font-size: 10px;
+                line-height: 1;
+                letter-spacing: 0;
+            `;
+
             root.appendChild(phonetic);
             root.appendChild(buttonRow);
             root.appendChild(speedRow);
             root.appendChild(result);
+            root.appendChild(versionBadge);
             document.body.appendChild(root);
 
             this.refs = {
                 phonetic,
                 result,
                 translation,
-                speedSlider
+                speedSlider,
+                versionBadge
             };
 
             const suppress = () => this.onInteract();
@@ -151,6 +182,12 @@
         }
 
         showAt(clientX, clientY) {
+            if (document.body && this.root.parentElement === document.body) {
+                document.body.appendChild(this.root);
+            } else if (document.body) {
+                document.body.appendChild(this.root);
+            }
+
             this.root.style.left = `${clientX}px`;
             this.root.style.top = `${clientY + 15}px`;
             this.root.style.display = 'block';

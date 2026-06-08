@@ -10,7 +10,8 @@
         chineseVoiceNote: document.getElementById('chineseVoiceNote'),
         routeLabel: document.getElementById('routeLabel'),
         status: document.getElementById('status'),
-        saveButton: document.getElementById('saveButton')
+        saveButton: document.getElementById('saveButton'),
+        versionLabel: document.getElementById('versionLabel')
     };
 
     let voices = [];
@@ -197,7 +198,21 @@
         elements.saveButton.addEventListener('click', saveCurrentSettings);
     }
 
+    function renderVersion() {
+        if (
+            !elements.versionLabel ||
+            typeof chrome === 'undefined' ||
+            !chrome.runtime ||
+            !chrome.runtime.getManifest
+        ) {
+            return;
+        }
+
+        elements.versionLabel.textContent = `v${chrome.runtime.getManifest().version}`;
+    }
+
     async function init() {
+        renderVersion();
         renderLanguages();
         bindEvents();
 

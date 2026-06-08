@@ -129,7 +129,8 @@ select:focus {
 }
 
 .footer {
-    display: flex;
+    display: grid;
+    gap: 8px;
 }
 
 .save-button {
@@ -154,4 +155,11 @@ select:focus {
     cursor: not-allowed;
     opacity: 0.64;
     box-shadow: none;
+}
+
+.version {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
 }

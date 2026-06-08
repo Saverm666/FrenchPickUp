@@ -9,8 +9,9 @@
     }
 
     Object.assign(app, {
-        VERSION: '2.0.0',
-        TOOLTIP_ID: 'french-pickup-tooltip',
+        VERSION: '2.1.7',
+        TOOLTIP_ID: 'french-pickup-tooltip-v2',
+        LEGACY_TOOLTIP_IDS: ['french-pickup-tooltip'],
         DEFAULT_RATE: 0.8,
         POPUP_SUPPRESS_MS: 180,
         FRENCH_TEXT_PATTERN: /^[A-Za-zÀ-ÖØ-öø-ÿŒœÆæÇç'’.-]+$/,

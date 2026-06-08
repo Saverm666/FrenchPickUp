@@ -3,6 +3,10 @@
 
     const app = window.__frenchPickupExtension;
 
+    const FRENCH_LETTER_CLASS = 'A-Za-z\\u00C0-\\u024F';
+    const FRENCH_TERM_PATTERN = new RegExp(`^[${FRENCH_LETTER_CLASS}]+(?:['\\u2019-][${FRENCH_LETTER_CLASS}]+)*$`);
+    const FRENCH_TRIM_PATTERN = new RegExp(`^[^${FRENCH_LETTER_CLASS}]+|[^${FRENCH_LETTER_CLASS}]+$`, 'g');
+
     function requestJson(url) {
         return new Promise((resolve, reject) => {
             chrome.runtime.sendMessage({ type: 'fetchJson', url }, (response) => {
@@ -12,7 +16,7 @@
                 }
 
                 if (!response || !response.ok) {
-                    reject(new Error(response && response.error ? response.error : '请求失败'));
+                    reject(new Error(response && response.error ? response.error : 'Request failed'));
                     return;
                 }
 
@@ -21,21 +25,204 @@
         });
     }
 
-    function extractFrenchPhonetic(wikitext) {
-        const pron = wikitext.match(/\{\{pron\|([^|{}]+)\|fr(?:\|[^{}]*)?\}\}/i);
-        if (pron && pron[1]) return pron[1];
+    function cleanPhonetic(value) {
+        return String(value || '')
+            .replace(/^1=/, '')
+            .replace(/^\/+|\/+$/g, '')
+            .replace(/^\[+|\]+$/g, '')
+            .trim();
+    }
 
-        const reconstructed = wikitext.match(/\{\{pron-recons\|([^|{}]+)\|fr(?:\|[^{}]*)?\}\}/i);
-        if (reconstructed && reconstructed[1]) return reconstructed[1];
+    function normalizeTemplateName(name) {
+        return String(name || '')
+            .trim()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function splitTemplateParts(template) {
+        const parts = [];
+        let current = '';
+        let braceDepth = 0;
+        let bracketDepth = 0;
+
+        for (let i = 0; i < template.length; i += 1) {
+            const char = template[i];
+            const next = template[i + 1];
+
+            if (char === '{' && next === '{') {
+                braceDepth += 1;
+                current += char;
+                i += 1;
+                current += next;
+                continue;
+            }
+
+            if (char === '}' && next === '}' && braceDepth > 0) {
+                braceDepth -= 1;
+                current += char;
+                i += 1;
+                current += next;
+                continue;
+            }
+
+            if (char === '[' && next === '[') {
+                bracketDepth += 1;
+                current += char;
+                i += 1;
+                current += next;
+                continue;
+            }
+
+            if (char === ']' && next === ']' && bracketDepth > 0) {
+                bracketDepth -= 1;
+                current += char;
+                i += 1;
+                current += next;
+                continue;
+            }
+
+            if (char === '|' && braceDepth === 0 && bracketDepth === 0) {
+                parts.push(current.trim());
+                current = '';
+                continue;
+            }
+
+            current += char;
+        }
+
+        parts.push(current.trim());
+        return parts;
+    }
+
+    function parseTemplateParams(parts) {
+        const positional = [];
+        const named = {};
+
+        parts.forEach((part) => {
+            const equalIndex = part.indexOf('=');
+            if (equalIndex > 0) {
+                const key = part.slice(0, equalIndex).trim().toLowerCase();
+                named[key] = part.slice(equalIndex + 1).trim();
+            } else {
+                positional.push(part);
+            }
+        });
+
+        return { positional, named };
+    }
+
+    function isFrenchLanguageParam(value) {
+        return String(value || '').trim().toLowerCase() === 'fr';
+    }
+
+    function firstCleanPhonetic(values) {
+        for (const value of values) {
+            const phonetic = cleanPhonetic(value);
+            if (phonetic && !isFrenchLanguageParam(phonetic)) return phonetic;
+        }
+
+        return '';
+    }
+
+    function extractFromPronTemplate(positional, named) {
+        const language = named.lang || named.langue || named.l || named[2];
+        const hasFrenchLanguage = isFrenchLanguageParam(language) ||
+            positional.some(isFrenchLanguageParam);
+
+        if (!hasFrenchLanguage) return '';
+
+        if (isFrenchLanguageParam(positional[0])) {
+            return firstCleanPhonetic([named[1], positional[1]]);
+        }
+
+        return firstCleanPhonetic([named[1], positional[0]]);
+    }
+
+    function extractFromFrenchLanguageTemplate(positional, named) {
+        const language = named.lang || named.langue || named.l || named[2] || positional[1];
+        if (!isFrenchLanguageParam(language)) return '';
+
+        return firstCleanPhonetic([named[1], positional[0]]);
+    }
+
+    function extractFromFrenchTemplate(positional, named) {
+        return firstCleanPhonetic([named[1], positional[0], named.pron, named.api]);
+    }
+
+    function extractPhoneticFromTemplates(wikitext) {
+        const templatePattern = /\{\{\s*([^{}]+?)\s*\}\}/g;
+        let matched;
+
+        while ((matched = templatePattern.exec(wikitext))) {
+            const parts = splitTemplateParts(matched[1]);
+            const name = normalizeTemplateName(parts.shift());
+            const params = parseTemplateParams(parts);
+
+            if (name === 'pron' || name === 'pron-recons' || name === 'api') {
+                const phonetic = extractFromPronTemplate(params.positional, params.named);
+                if (phonetic) return phonetic;
+            }
+
+            if (name === 'phono' || name === 'phon') {
+                const phonetic = extractFromFrenchLanguageTemplate(params.positional, params.named);
+                if (phonetic) return phonetic;
+            }
+
+            if (name === 'fr-reg' || name.startsWith('fr-reg-')) {
+                const phonetic = extractFromFrenchTemplate(params.positional, params.named);
+                if (phonetic) return phonetic;
+            }
+        }
+
+        return '';
+    }
+
+    function hasLanguageSections(wikitext) {
+        return /^==(?!\=)\s*\{\{\s*(?:langue|-[a-z-]+-)\s*\|?[^}]*\}\}\s*==\s*$/im.test(wikitext);
+    }
+
+    function isFrenchLanguageHeading(heading) {
+        const normalizedHeading = normalizeTemplateName(heading);
+        return /\{\{\s*langue\s*\|\s*fr\s*(?:\||\}\})/i.test(heading) ||
+            /\{\{\s*-fr-\s*\}\}/i.test(heading) ||
+            normalizedHeading === 'francais';
+    }
+
+    function extractFrenchSection(wikitext) {
+        const sectionPattern = /^==(?!\=)\s*(.*?)\s*==\s*$/gmi;
+        let matched;
+
+        while ((matched = sectionPattern.exec(wikitext))) {
+            const heading = matched[1];
+
+            if (isFrenchLanguageHeading(heading)) {
+                const start = sectionPattern.lastIndex;
+                const next = /^==(?!\=)\s*.*?\s*==\s*$/gmi;
+                next.lastIndex = start;
+                const nextMatch = next.exec(wikitext);
+                const end = nextMatch ? nextMatch.index : wikitext.length;
+                return wikitext.slice(start, end);
+            }
+        }
+
+        return '';
+    }
+
+    function extractFrenchPhonetic(wikitext) {
+        const frenchSection = extractFrenchSection(wikitext);
+        if (frenchSection) return extractPhoneticFromTemplates(frenchSection);
 
         return '';
     }
 
     function normalizeFrenchTerm(text) {
-        return text
+        return String(text || '')
+            .normalize('NFKC')
             .toLowerCase()
-            .replace(/[’]/g, "'")
-            .replace(app.FRENCH_TRIM_PATTERN, '')
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(FRENCH_TRIM_PATTERN, '')
             .trim();
     }
 
@@ -68,12 +255,29 @@
     }
 
     function isFrenchTerm(text) {
-        return app.getSettings().learningLang === 'fr' && app.FRENCH_TEXT_PATTERN.test(text);
+        const word = normalizeFrenchTerm(text);
+        return app.getSettings().learningLang === 'fr' && FRENCH_TERM_PATTERN.test(word);
     }
 
     app.api = {
         fetchPhonetic,
         translateText,
-        isFrenchTerm
+        isFrenchTerm,
+        __debug: Object.freeze({
+            cleanPhonetic,
+            normalizeTemplateName,
+            splitTemplateParts,
+            parseTemplateParams,
+            isFrenchLanguageParam,
+            extractFromPronTemplate,
+            extractFromFrenchLanguageTemplate,
+            extractFromFrenchTemplate,
+            extractPhoneticFromTemplates,
+            hasLanguageSections,
+            isFrenchLanguageHeading,
+            extractFrenchSection,
+            extractFrenchPhonetic,
+            normalizeFrenchTerm
+        })
     };
 })();

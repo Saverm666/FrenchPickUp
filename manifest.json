@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "法语拾音",
-  "version": "2.0.0",
+  "version": "2.1.7",
   "description": "划选文本自动翻译和朗读，学习语言为法语时显示音标。",
   "permissions": [
     "storage"
