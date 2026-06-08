@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>法语拾音设置</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <main class="popup-shell">
+        <header class="header">
+            <div>
+                <p class="eyebrow">French Pickup</p>
+                <h1>语言与朗读</h1>
+            </div>
+            <span class="status" id="status" aria-live="polite">已保存</span>
+        </header>
+
+        <section class="panel">
+            <label class="field" for="learningLang">
+                <span>学习语言</span>
+                <select id="learningLang"></select>
+            </label>
+            <div class="route" id="routeLabel">中文 ⇄ 法语</div>
+        </section>
+
+        <section class="panel">
+            <label class="field" for="learningVoice">
+                <span>学习语声音</span>
+                <select id="learningVoice"></select>
+            </label>
+            <p class="voice-note" id="learningVoiceNote"></p>
+        </section>
+
+        <section class="panel">
+            <label class="field" for="chineseVoice">
+                <span>中文声音</span>
+                <select id="chineseVoice"></select>
+            </label>
+            <p class="voice-note" id="chineseVoiceNote"></p>
+        </section>
+
+        <footer class="footer">
+            <button class="save-button" id="saveButton" type="button">保存设置</button>
+        </footer>
+    </main>
+
+    <script src="../shared/settings.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>

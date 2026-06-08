@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "法语拾音",
+  "version": "2.0.0",
+  "description": "划选文本自动翻译和朗读，学习语言为法语时显示音标。",
+  "permissions": [
+    "storage"
+  ],
+  "action": {
+    "default_title": "法语拾音设置",
+    "default_popup": "src/popup/popup.html"
+  },
+  "host_permissions": [
+    "https://translate.googleapis.com/*",
+    "https://fr.wiktionary.org/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/shared/settings.js",
+        "src/content/config.js",
+        "src/content/api.js",
+        "src/content/speech.js",
+        "src/content/tooltip.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
